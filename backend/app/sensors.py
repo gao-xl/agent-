@@ -4,16 +4,17 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
-from datetime import UTC, datetime
 
-from .models import Observation, SensorInfo
+from .models import Observation, ObservationRecord, SensorInfo
 
 Publish = Callable[[dict], Awaitable[None]]
+RecordObservation = Callable[[Observation], Awaitable[ObservationRecord]]
 
 
 class SensorManager:
-    def __init__(self, publish: Publish) -> None:
+    def __init__(self, publish: Publish, record_observation: RecordObservation) -> None:
         self.publish = publish
+        self.record_observation = record_observation
         self.sensors = {
             "mock-heart-rate": SensorInfo(id="mock-heart-rate", name="模拟心率", kind="heart_rate", status="stopped", description="用于验证蓝牙/可穿戴输入链路的模拟源。"),
             "mock-microphone": SensorInfo(id="mock-microphone", name="模拟声音电平", kind="audio_level", status="stopped", description="只产生归一化音量，不保存原始音频。"),
@@ -62,6 +63,7 @@ class SensorManager:
                 else: value = "signal-present" if tick % 2 else "signal-idle"
                 observation = Observation(source=sensor_id, kind=sensor.kind, value=value, confidence=1.0)
                 sensor.latest = observation
-                await self.publish({"type": "observation.received", "payload": {**observation.model_dump(mode="json"), "timestamp": datetime.now(UTC).isoformat()}})
+                record = await self.record_observation(observation)
+                await self.publish({"type": "sensor.observation", "payload": record.model_dump(mode="json")})
         except asyncio.CancelledError:
             raise

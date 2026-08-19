@@ -8,21 +8,32 @@ from fastapi.middleware.cors import CORSMiddleware
 from .ai import AiService
 from .events import EventBus
 from .execution import ScenarioRunner
-from .models import AiSettings, AudioPlayRequest, DeviceCommand, DeviceCommandRequest, Observation, SafetySettings, ScenarioImport
+from .models import AiSettings, AudioPlayRequest, DeviceCommand, DeviceCommandRequest, HealthReport, Observation, SafetySettings, ScenarioImport, ScenarioUpdate
 from .modules import default_modules
 from .providers.registry import ProviderRegistry
 from .scenarios import ScenarioStore
 from .safety import SafetyCore, SafetyError
 from .sensors import SensorManager
+from .state import AppStateStore
 
 
+database_path = os.getenv("EDGEPLAY_DB_PATH", "edgeplay.db")
 bus = EventBus()
+state_store = AppStateStore(database_path)
 registry = ProviderRegistry()
-safety = SafetyCore(SafetySettings())
-scenarios = ScenarioStore(os.getenv("EDGEPLAY_DB_PATH", "edgeplay.db"))
+safety = SafetyCore(SafetySettings.model_validate(state_store.get_setting("safety", {})))
+scenarios = ScenarioStore(database_path)
 ai_service = AiService()
 runner = ScenarioRunner(safety, registry.execute, bus.publish)
-sensors = SensorManager(bus.publish)
+
+
+async def ingest_observation(payload: Observation):
+    record = state_store.add_observation(payload)
+    await bus.publish({"type": "observation.received", "payload": record.model_dump(mode="json")})
+    return record
+
+
+sensors = SensorManager(bus.publish, ingest_observation)
 
 
 @asynccontextmanager
@@ -45,8 +56,8 @@ app.add_middleware(
 
 
 @app.get("/api/health")
-async def health() -> dict[str, str]:
-    return {"status": "ok", "service": "edgeplay-backend"}
+async def health() -> HealthReport:
+    return HealthReport(status="ok", service="edgeplay-backend", version=app.version, safety_stopped=safety.stopped, provider_count=len(registry.providers))
 
 
 @app.get("/api/devices")
@@ -103,6 +114,7 @@ async def safety_resume() -> dict[str, str]:
 @app.put("/api/safety")
 async def update_safety(settings: SafetySettings) -> SafetySettings:
     safety.settings = settings
+    state_store.set_setting("safety", settings.model_dump(mode="json"))
     await bus.publish({"type": "safety.settings", "payload": settings.model_dump(mode="json")})
     return settings
 
@@ -136,6 +148,43 @@ async def import_scenario(payload: ScenarioImport):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     await bus.publish({"type": "scenario.imported", "payload": scenario.model_dump(mode="json")})
     return scenario
+
+
+@app.get("/api/scenarios/{scenario_id}")
+async def get_scenario(scenario_id: str):
+    scenario = scenarios.get(scenario_id)
+    if not scenario:
+        raise HTTPException(status_code=404, detail="剧本不存在")
+    return scenario
+
+
+@app.put("/api/scenarios/{scenario_id}")
+async def update_scenario(scenario_id: str, payload: ScenarioUpdate):
+    try:
+        scenario = scenarios.update(scenario_id, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not scenario:
+        raise HTTPException(status_code=404, detail="剧本不存在")
+    await bus.publish({"type": "scenario.updated", "payload": scenario.model_dump(mode="json")})
+    return scenario
+
+
+@app.get("/api/scenarios/{scenario_id}/export")
+async def export_scenario(scenario_id: str):
+    scenario = scenarios.get(scenario_id)
+    if not scenario:
+        raise HTTPException(status_code=404, detail="剧本不存在")
+    return {"name": scenario.name, "events": [event.model_dump(mode="json") for event in scenario.events]}
+
+
+@app.delete("/api/scenarios/{scenario_id}", status_code=204)
+async def delete_scenario(scenario_id: str):
+    if runner.execution and runner.execution.scenario_id == scenario_id and runner.execution.state.value in {"running", "awaiting_confirmation"}:
+        raise HTTPException(status_code=409, detail="无法删除正在执行的剧本")
+    if not scenarios.delete(scenario_id):
+        raise HTTPException(status_code=404, detail="剧本不存在")
+    await bus.publish({"type": "scenario.deleted", "payload": {"scenario_id": scenario_id}})
 
 
 @app.post("/api/scenarios/{scenario_id}/optimize")
@@ -197,8 +246,13 @@ async def play_audio(payload: AudioPlayRequest):
 @app.post("/api/observations")
 async def receive_observation(payload: Observation):
     # Observations are informational only; they never dispatch device commands.
-    await bus.publish({"type": "observation.received", "payload": payload.model_dump(mode="json")})
+    await ingest_observation(payload)
     return {"ok": True, "automation": "disabled"}
+
+
+@app.get("/api/observations")
+async def list_observations(limit: int = 100):
+    return state_store.list_observations(max(1, min(limit, 500)))
 
 
 @app.get("/api/sensors")

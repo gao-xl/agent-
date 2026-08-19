@@ -59,9 +59,18 @@ class Observation(BaseModel):
     confidence: float | None = Field(default=None, ge=0, le=1)
 
 
+class ObservationRecord(Observation):
+    id: int
+    timestamp: str
+
+
 class ScenarioImport(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     content: str = Field(min_length=1, max_length=50_000)
+
+
+class ScenarioUpdate(ScenarioImport):
+    pass
 
 
 class Scenario(BaseModel):
@@ -93,6 +102,14 @@ class ModuleInfo(BaseModel):
     kind: str
     status: str
     description: str
+
+
+class HealthReport(BaseModel):
+    status: str
+    service: str
+    version: str
+    safety_stopped: bool
+    provider_count: int
 
 
 class ProviderInfo(BaseModel):

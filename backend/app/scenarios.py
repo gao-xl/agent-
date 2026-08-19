@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 
-from .models import Scenario, ScenarioEvent, ScenarioImport, ScenarioOptimization
+from .models import Scenario, ScenarioEvent, ScenarioImport, ScenarioOptimization, ScenarioUpdate
 
 
 def utc_now() -> str:
@@ -19,10 +21,18 @@ class ScenarioStore:
         self.path = Path(database_path)
         self._initialize()
 
-    def _connection(self) -> sqlite3.Connection:
+    @contextmanager
+    def _connection(self) -> Iterator[sqlite3.Connection]:
         connection = sqlite3.connect(self.path)
         connection.row_factory = sqlite3.Row
-        return connection
+        try:
+            yield connection
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
 
     def _initialize(self) -> None:
         with self._connection() as connection:
@@ -68,6 +78,22 @@ class ScenarioStore:
                 (scenario.id, scenario.name, scenario.source, json.dumps([event.model_dump() for event in events]), scenario.revision, timestamp, timestamp),
             )
         return scenario
+
+    def update(self, scenario_id: str, payload: ScenarioUpdate) -> Scenario | None:
+        existing = self.get(scenario_id)
+        if not existing:
+            return None
+        events = parse_scenario(payload.content)
+        timestamp = utc_now()
+        scenario = Scenario(id=scenario_id, name=payload.name, source=payload.content, events=events, revision=existing.revision + 1, created_at=existing.created_at, updated_at=timestamp)
+        with self._connection() as connection:
+            connection.execute("UPDATE scenarios SET name = ?, source = ?, events_json = ?, revision = ?, updated_at = ? WHERE id = ?", (scenario.name, scenario.source, json.dumps([event.model_dump() for event in events]), scenario.revision, timestamp, scenario_id))
+        return scenario
+
+    def delete(self, scenario_id: str) -> bool:
+        with self._connection() as connection:
+            cursor = connection.execute("DELETE FROM scenarios WHERE id = ?", (scenario_id,))
+        return cursor.rowcount == 1
 
 
 def parse_scenario(content: str) -> list[ScenarioEvent]:
