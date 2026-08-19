@@ -1,0 +1,20 @@
+{
+  "name": "edgeplay-platform",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "npm --prefix frontend run build",
+    "gateway": "tsx dglab-gateway.ts"
+  },
+  "dependencies": {
+    "dglab-kit": "latest",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.5.12",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

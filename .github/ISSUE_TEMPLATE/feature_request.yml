@@ -1,0 +1,20 @@
+name: Feature request
+description: Propose a scoped enhancement
+labels: [enhancement]
+body:
+  - type: textarea
+    attributes:
+      label: Problem
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: checkboxes
+    attributes:
+      label: Safety check
+      options:
+        - label: This proposal does not make sensor observations automatically control devices.
+          required: true

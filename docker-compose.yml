@@ -1,0 +1,12 @@
+services:
+  backend:
+    build: .
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      EDGEPLAY_DB_PATH: /data/edgeplay.db
+    volumes:
+      - edgeplay-data:/data
+
+volumes:
+  edgeplay-data:

@@ -1,0 +1,33 @@
+:root { font-family: Inter, system-ui, sans-serif; color: #e8edf5; background: #11151d; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; }
+.shell { max-width: 960px; margin: 0 auto; padding: 48px 24px; }
+header { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; margin-bottom: 36px; }
+.eyebrow { color: #8da2c4; font-size: 12px; letter-spacing: .14em; margin: 0 0 10px; }
+h1 { font-size: clamp(28px, 5vw, 48px); margin: 0; }
+h2 { margin-top: 0; font-size: 18px; }
+.subtitle, small, .safety p { color: #9aa8bb; }
+.status { color: #9de2b0; font-size: 13px; }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.panel, .safety { border: 1px solid #2c3544; background: #171d27; border-radius: 14px; padding: 20px; }
+.device, .module { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 14px 0; border-top: 1px solid #293241; }
+.device:first-of-type, .module:first-of-type { border-top: 0; }
+.device small { display: block; margin-top: 5px; }
+.tag, .module span { color: #a9c7ff; font-size: 12px; }
+.empty { color: #9aa8bb; padding: 16px 0; }
+button { border: 1px solid #43536b; border-radius: 8px; color: #e8edf5; background: #202a39; padding: 10px 14px; cursor: pointer; }
+button:hover { background: #2a3850; }
+button:disabled { cursor: not-allowed; opacity: .45; }
+input, textarea, select { width: 100%; margin: 0 0 12px; color: #e8edf5; background: #11151d; border: 1px solid #43536b; border-radius: 8px; padding: 10px; font: inherit; }
+textarea { resize: vertical; line-height: 1.45; }
+.scenario-list { display: grid; gap: 8px; margin: 12px 0; max-height: 150px; overflow: auto; }
+.list-button { text-align: left; display: flex; justify-content: space-between; }
+.selected { color: #9aa8bb; min-height: 22px; }
+.result { margin-top: 16px; border-top: 1px solid #293241; padding-top: 14px; color: #c7d2e4; }
+.result ul { padding-left: 20px; }
+.note { display: block; margin: 7px 0; color: #f0c98a; }
+.log { max-height: 160px; overflow: auto; border: 1px solid #293241; border-radius: 8px; padding: 8px; color: #a9c7ff; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.log > div { padding: 4px; }
+.safety { margin-top: 16px; display: flex; justify-content: space-between; gap: 20px; align-items: center; }
+.danger { background: #9f3d4b; border-color: #c95766; }
+@media (max-width: 680px) { header, .safety { display: block; } .status { display: block; margin-top: 16px; } .grid { grid-template-columns: 1fr; } .safety button { margin-top: 12px; } }
